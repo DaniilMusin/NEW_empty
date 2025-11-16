@@ -1,14 +1,29 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Schedule as ScheduleType } from '@/types';
-import { Storage } from '@/lib/storage';
+import { createClient } from '@/lib/supabase/client';
+import { useUser } from '@/hooks/useUser';
 
 const DAYS = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
 
+interface Schedule {
+  id: string;
+  subject: string;
+  teacher: string;
+  day_of_week: number;
+  start_time: string;
+  end_time: string;
+  classroom?: string;
+}
+
 export default function Schedule() {
-  const [schedules, setSchedules] = useState<ScheduleType[]>([]);
+  const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [isAdding, setIsAdding] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const { user } = useUser();
+  const supabase = createClient();
+
   const [formData, setFormData] = useState({
     subject: '',
     teacher: '',
@@ -19,43 +34,99 @@ export default function Schedule() {
   });
 
   useEffect(() => {
-    setSchedules(Storage.getSchedules());
-  }, []);
+    if (user) {
+      loadSchedules();
+    }
+  }, [user]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const newSchedule: ScheduleType = {
-      id: Date.now().toString(),
-      ...formData,
-    };
-    const updated = [...schedules, newSchedule];
-    setSchedules(updated);
-    Storage.saveSchedules(updated);
-    setIsAdding(false);
-    setFormData({
-      subject: '',
-      teacher: '',
-      dayOfWeek: 0,
-      startTime: '',
-      endTime: '',
-      classroom: '',
-    });
+  const loadSchedules = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('schedules')
+        .select('*')
+        .order('day_of_week', { ascending: true })
+        .order('start_time', { ascending: true });
+
+      if (error) throw error;
+      setSchedules(data || []);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleDelete = (id: string) => {
-    const updated = schedules.filter(s => s.id !== id);
-    setSchedules(updated);
-    Storage.saveSchedules(updated);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('schedules')
+        .insert([
+          {
+            student_id: user.id,
+            subject: formData.subject,
+            teacher: formData.teacher,
+            day_of_week: formData.dayOfWeek,
+            start_time: formData.startTime,
+            end_time: formData.endTime,
+            classroom: formData.classroom || null,
+          },
+        ])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setSchedules([...schedules, data]);
+      setIsAdding(false);
+      setFormData({
+        subject: '',
+        teacher: '',
+        dayOfWeek: 0,
+        startTime: '',
+        endTime: '',
+        classroom: '',
+      });
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      const { error } = await supabase.from('schedules').delete().eq('id', id);
+
+      if (error) throw error;
+
+      setSchedules(schedules.filter((s) => s.id !== id));
+    } catch (err: any) {
+      setError(err.message);
+    }
   };
 
   const getSchedulesByDay = (day: number) => {
     return schedules
-      .filter(s => s.dayOfWeek === day)
-      .sort((a, b) => a.startTime.localeCompare(b.startTime));
+      .filter((s) => s.day_of_week === day)
+      .sort((a, b) => a.start_time.localeCompare(b.start_time));
   };
+
+  if (loading) {
+    return (
+      <div className="text-center py-12 text-muted-foreground">Загрузка расписания...</div>
+    );
+  }
 
   return (
     <div className="space-y-4">
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/50 text-red-600 dark:text-red-400 px-4 py-3 rounded-lg">
+          {error}
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-semibold">Расписание</h2>
         <button
@@ -73,7 +144,7 @@ export default function Schedule() {
               type="text"
               placeholder="Предмет"
               value={formData.subject}
-              onChange={e => setFormData({ ...formData, subject: e.target.value })}
+              onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
               className="px-4 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
               required
             />
@@ -81,31 +152,33 @@ export default function Schedule() {
               type="text"
               placeholder="Преподаватель"
               value={formData.teacher}
-              onChange={e => setFormData({ ...formData, teacher: e.target.value })}
+              onChange={(e) => setFormData({ ...formData, teacher: e.target.value })}
               className="px-4 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
               required
             />
             <select
               value={formData.dayOfWeek}
-              onChange={e => setFormData({ ...formData, dayOfWeek: parseInt(e.target.value) })}
+              onChange={(e) => setFormData({ ...formData, dayOfWeek: parseInt(e.target.value) })}
               className="px-4 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
             >
               {DAYS.map((day, idx) => (
-                <option key={idx} value={idx}>{day}</option>
+                <option key={idx} value={idx}>
+                  {day}
+                </option>
               ))}
             </select>
             <input
               type="text"
               placeholder="Кабинет (необязательно)"
               value={formData.classroom}
-              onChange={e => setFormData({ ...formData, classroom: e.target.value })}
+              onChange={(e) => setFormData({ ...formData, classroom: e.target.value })}
               className="px-4 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
             />
             <input
               type="time"
               placeholder="Начало"
               value={formData.startTime}
-              onChange={e => setFormData({ ...formData, startTime: e.target.value })}
+              onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
               className="px-4 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
               required
             />
@@ -113,7 +186,7 @@ export default function Schedule() {
               type="time"
               placeholder="Конец"
               value={formData.endTime}
-              onChange={e => setFormData({ ...formData, endTime: e.target.value })}
+              onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
               className="px-4 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
               required
             />
@@ -136,11 +209,8 @@ export default function Schedule() {
             <div key={dayIndex} className="bg-card border border-border rounded-lg p-4">
               <h3 className="font-semibold mb-3 text-lg">{day}</h3>
               <div className="space-y-2">
-                {daySchedules.map(schedule => (
-                  <div
-                    key={schedule.id}
-                    className="bg-secondary p-3 rounded-lg space-y-1"
-                  >
+                {daySchedules.map((schedule) => (
+                  <div key={schedule.id} className="bg-secondary p-3 rounded-lg space-y-1">
                     <div className="flex justify-between items-start">
                       <div className="font-medium">{schedule.subject}</div>
                       <button
@@ -152,7 +222,7 @@ export default function Schedule() {
                     </div>
                     <div className="text-sm text-muted-foreground">{schedule.teacher}</div>
                     <div className="text-sm text-muted-foreground">
-                      {schedule.startTime} - {schedule.endTime}
+                      {schedule.start_time} - {schedule.end_time}
                     </div>
                     {schedule.classroom && (
                       <div className="text-sm text-muted-foreground">Каб. {schedule.classroom}</div>
