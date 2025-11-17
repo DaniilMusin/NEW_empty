@@ -1,9 +1,18 @@
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { NextRequest, NextResponse } from 'next/server';
+import { validateCSRF } from '@/lib/csrf';
 
 export async function POST(request: NextRequest) {
   try {
+    // БАГ #50: CSRF защита
+    if (!validateCSRF(request)) {
+      return NextResponse.json(
+        { error: 'CSRF validation failed' },
+        { status: 403 }
+      );
+    }
+
     const supabase = await createClient();
     const adminClient = createAdminClient();
 
@@ -32,17 +41,38 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Проверяем, что удаляем не админа
-    const { data: studentData } = await supabase
+    // БАГ #53: Проверяем существование студента
+    const { data: studentData, error: studentError } = await supabase
       .from('students')
       .select('is_admin')
       .eq('id', student_id)
       .single();
 
-    if (studentData?.is_admin) {
+    if (studentError || !studentData) {
+      return NextResponse.json(
+        { error: 'Студент не найден' },
+        { status: 404 }
+      );
+    }
+
+    if (studentData.is_admin) {
       return NextResponse.json(
         { error: 'Нельзя удалить админа' },
         { status: 403 }
+      );
+    }
+
+    // БАГ #24: Сначала удаляем из auth.users, затем из students
+    // Это безопаснее: если удаление из students упадет, пользователь не сможет войти
+    const { error: authDeleteError } = await adminClient.auth.admin.deleteUser(
+      student_id
+    );
+
+    if (authDeleteError) {
+      console.error('Error deleting user from auth:', authDeleteError);
+      return NextResponse.json(
+        { error: 'Ошибка при удалении пользователя из системы авторизации' },
+        { status: 500 }
       );
     }
 
@@ -53,21 +83,12 @@ export async function POST(request: NextRequest) {
       .eq('id', student_id);
 
     if (deleteError) {
+      // БАГ #24: Если удаление профиля упало после удаления auth, логируем ошибку
+      console.error('Error deleting student profile after auth deletion:', deleteError);
       return NextResponse.json(
-        { error: 'Ошибка при удалении профиля ученика' },
+        { error: 'Ошибка при удалении профиля ученика (требуется ручная очистка)' },
         { status: 500 }
       );
-    }
-
-    // БАГ #4: Удаляем пользователя из auth.users через Admin API
-    const { error: authDeleteError } = await adminClient.auth.admin.deleteUser(
-      student_id
-    );
-
-    if (authDeleteError) {
-      console.error('Error deleting user from auth:', authDeleteError);
-      // Не возвращаем ошибку, так как профиль уже удален
-      // В худшем случае останется orphaned auth record
     }
 
     return NextResponse.json({ success: true });

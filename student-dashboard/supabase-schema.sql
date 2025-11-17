@@ -22,7 +22,9 @@ CREATE TABLE IF NOT EXISTS public.schedules (
   end_time VARCHAR(5) NOT NULL CHECK (end_time ~ '^\d{2}:\d{2}$'),
   classroom VARCHAR(20),
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  -- БАГ #38: Проверка что время начала < времени окончания
+  CHECK (start_time < end_time)
 );
 
 -- Таблица домашних заданий
@@ -50,7 +52,9 @@ CREATE TABLE IF NOT EXISTS public.grades (
   type TEXT NOT NULL CHECK (type IN ('homework', 'test', 'exam', 'quiz', 'project')),
   description VARCHAR(500) NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  -- БАГ #39: Проверка что оценка не превышает максимальную
+  CHECK (value <= max_value)
 );
 
 -- Таблица отчетов по занятиям
@@ -326,6 +330,8 @@ CREATE POLICY "Admins can view all messages"
 CREATE INDEX IF NOT EXISTS idx_students_username ON public.students(username);
 CREATE INDEX IF NOT EXISTS idx_schedules_student_id ON public.schedules(student_id);
 CREATE INDEX IF NOT EXISTS idx_homework_student_id ON public.homework(student_id);
+-- БАГ #38: Индекс для оптимизации запросов просроченных заданий
+CREATE INDEX IF NOT EXISTS idx_homework_due_date ON public.homework(due_date);
 CREATE INDEX IF NOT EXISTS idx_grades_student_id ON public.grades(student_id);
 CREATE INDEX IF NOT EXISTS idx_reports_student_id ON public.reports(student_id);
 CREATE INDEX IF NOT EXISTS idx_ai_messages_student_id ON public.ai_messages(student_id);

@@ -1,9 +1,18 @@
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { NextRequest, NextResponse } from 'next/server';
+import { validateCSRF } from '@/lib/csrf';
 
 export async function POST(request: NextRequest) {
   try {
+    // БАГ #50: CSRF защита
+    if (!validateCSRF(request)) {
+      return NextResponse.json(
+        { error: 'CSRF validation failed' },
+        { status: 403 }
+      );
+    }
+
     const supabase = await createClient();
     const adminClient = createAdminClient();
 

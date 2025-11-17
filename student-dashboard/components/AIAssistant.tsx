@@ -87,20 +87,13 @@ export default function AIAssistant() {
     }
 
     try {
-      // Формируем историю для API
-      const conversationHistory = [...messages, userMessage].filter(Boolean).map((m) => ({
-        role: m!.role,
-        content: m!.content,
-      }));
-
+      // БАГ #18: Не отправляем messages - они загружаются на сервере из БД
       const response = await fetch('/api/ai', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          messages: conversationHistory,
-        }),
+        body: JSON.stringify({}),
       });
 
       if (!response.ok) {

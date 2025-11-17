@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useUser } from '@/hooks/useUser';
+import { formatDate, isOverdue, getTodayUTC, isNotInPast } from '@/lib/dates';
 
 interface Homework {
   id: string;
@@ -47,8 +48,9 @@ export default function Homework() {
 
       if (error) throw error;
       setHomework(data || []);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      // БАГ #34: Правильная типизация ошибок
+      setError(err instanceof Error ? err.message : 'Произошла ошибка');
     } finally {
       setLoading(false);
     }
@@ -57,6 +59,23 @@ export default function Homework() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+
+    // БАГ #41: Валидация даты - не должна быть в прошлом
+    if (!isNotInPast(formData.dueDate)) {
+      setError('Дата выполнения не может быть в прошлом');
+      return;
+    }
+
+    // БАГ #42: Валидация длины полей
+    if (formData.title.length > 200) {
+      setError('Название задания не должно превышать 200 символов');
+      return;
+    }
+
+    if (formData.description.length > 2000) {
+      setError('Описание не должно превышать 2000 символов');
+      return;
+    }
 
     try {
       const { data, error } = await supabase
@@ -77,7 +96,8 @@ export default function Homework() {
 
       if (error) throw error;
 
-      setHomework([...homework, data]);
+      // БАГ #21: Функциональное обновление для избежания race condition
+      setHomework((prev) => [...prev, data]);
       setIsAdding(false);
       setFormData({
         subject: '',
@@ -86,8 +106,9 @@ export default function Homework() {
         dueDate: '',
         priority: 'medium',
       });
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      // БАГ #34: Правильная типизация ошибок
+      setError(err instanceof Error ? err.message : 'Произошла ошибка');
     }
   };
 
@@ -100,11 +121,13 @@ export default function Homework() {
 
       if (error) throw error;
 
-      setHomework(
-        homework.map((hw) => (hw.id === id ? { ...hw, completed: !currentCompleted } : hw))
+      // БАГ #21: Функциональное обновление для избежания race condition
+      setHomework((prev) =>
+        prev.map((hw) => (hw.id === id ? { ...hw, completed: !currentCompleted } : hw))
       );
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      // БАГ #34: Правильная типизация ошибок
+      setError(err instanceof Error ? err.message : 'Произошла ошибка');
     }
   };
 
@@ -114,9 +137,11 @@ export default function Homework() {
 
       if (error) throw error;
 
-      setHomework(homework.filter((hw) => hw.id !== id));
-    } catch (err: any) {
-      setError(err.message);
+      // БАГ #21: Функциональное обновление для избежания race condition
+      setHomework((prev) => prev.filter((hw) => hw.id !== id));
+    } catch (err) {
+      // БАГ #34: Правильная типизация ошибок
+      setError(err instanceof Error ? err.message : 'Произошла ошибка');
     }
   };
 
@@ -136,22 +161,6 @@ export default function Homework() {
       default:
         return 'bg-gray-500';
     }
-  };
-
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('ru-RU', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    });
-  };
-
-  const isOverdue = (dateStr: string) => {
-    return (
-      new Date(dateStr) < new Date() &&
-      new Date(dateStr).toDateString() !== new Date().toDateString()
-    );
   };
 
   if (loading) {
