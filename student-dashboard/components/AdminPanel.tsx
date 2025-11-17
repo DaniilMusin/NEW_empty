@@ -21,8 +21,11 @@ export default function AdminPanel() {
     password: '',
   });
   const [generatedPassword, setGeneratedPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [createdStudent, setCreatedStudent] = useState<{ username: string; password: string } | null>(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const supabase = createClient();
 
   useEffect(() => {
@@ -42,11 +45,14 @@ export default function AdminPanel() {
     setLoading(false);
   };
 
+  // БАГ #10: Криптографически безопасная генерация пароля
   const generatePassword = () => {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%^&*';
+    const array = new Uint32Array(12);
+    crypto.getRandomValues(array);
     let password = '';
-    for (let i = 0; i < 8; i++) {
-      password += chars.charAt(Math.floor(Math.random() * chars.length));
+    for (let i = 0; i < 12; i++) {
+      password += chars.charAt(array[i] % chars.length);
     }
     setFormData({ ...formData, password });
     setGeneratedPassword(password);
@@ -56,9 +62,27 @@ export default function AdminPanel() {
     e.preventDefault();
     setError('');
     setSuccess('');
+    setCreatedStudent(null);
 
     if (!formData.username || !formData.full_name || !formData.password) {
       setError('Заполните все поля');
+      return;
+    }
+
+    // БАГ #8: Валидация username
+    const usernameRegex = /^[a-zA-Z0-9_]+$/;
+    if (!usernameRegex.test(formData.username)) {
+      setError('Логин может содержать только латинские буквы, цифры и подчеркивание');
+      return;
+    }
+
+    if (formData.username.length < 3 || formData.username.length > 30) {
+      setError('Логин должен быть от 3 до 30 символов');
+      return;
+    }
+
+    if (formData.password.length < 8) {
+      setError('Пароль должен быть минимум 8 символов');
       return;
     }
 
@@ -83,33 +107,51 @@ export default function AdminPanel() {
         return;
       }
 
-      setSuccess(`Ученик создан! Логин: ${formData.username}, Пароль: ${formData.password}`);
-      setGeneratedPassword(formData.password);
+      // БАГ #7: Не показываем пароль в обычном тексте, сохраняем в отдельном состоянии
+      setCreatedStudent({ username: formData.username, password: formData.password });
+      setSuccess('Ученик успешно создан!');
       setFormData({ username: '', full_name: '', password: '' });
+      setIsAdding(false);
       loadStudents();
     } catch (err) {
       setError('Произошла ошибка при создании ученика');
     }
   };
 
+  // БАГ #12, #14: Добавлены loading state и обработка concurrent deletion
   const handleDeleteStudent = async (id: string, username: string) => {
     if (!confirm(`Вы уверены, что хотите удалить ученика ${username}?`)) {
       return;
     }
 
-    const response = await fetch('/api/admin/delete-student', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ student_id: id }),
-    });
+    setDeletingId(id);
+    setError('');
 
-    if (response.ok) {
-      loadStudents();
-    } else {
+    try {
+      const response = await fetch('/api/admin/delete-student', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ student_id: id }),
+      });
+
       const result = await response.json();
-      setError(result.error || 'Ошибка при удалении ученика');
+
+      if (response.ok) {
+        setSuccess(`Ученик ${username} успешно удален`);
+        loadStudents();
+      } else if (response.status === 404) {
+        // БАГ #12: Обработка concurrent deletion
+        setError(`Ученик ${username} уже был удален другим администратором`);
+        loadStudents(); // Обновляем список
+      } else {
+        setError(result.error || 'Ошибка при удалении ученика');
+      }
+    } catch (err) {
+      setError('Произошла ошибка при удалении ученика');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -137,8 +179,45 @@ export default function AdminPanel() {
 
       {success && (
         <div className="bg-green-500/10 border border-green-500/50 text-green-600 dark:text-green-400 px-4 py-3 rounded-lg">
-          <p>{success}</p>
-          <p className="mt-2 text-sm">Обязательно сохраните эти данные! Пароль больше не будет доступен.</p>
+          {success}
+        </div>
+      )}
+
+      {/* БАГ #7: Модальное окно для показа учетных данных нового ученика */}
+      {createdStudent && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setCreatedStudent(null)}>
+          <div className="bg-card border border-border rounded-lg p-6 max-w-md w-full mx-4" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold mb-4">Ученик успешно создан!</h3>
+            <div className="space-y-3 bg-secondary p-4 rounded-lg mb-4">
+              <div>
+                <div className="text-sm text-muted-foreground">Логин:</div>
+                <div className="font-mono font-semibold text-lg">{createdStudent.username}</div>
+              </div>
+              <div>
+                <div className="text-sm text-muted-foreground">Пароль:</div>
+                <div className="font-mono font-semibold text-lg">{createdStudent.password}</div>
+              </div>
+            </div>
+            <div className="bg-yellow-500/10 border border-yellow-500/50 text-yellow-600 dark:text-yellow-400 px-3 py-2 rounded text-sm mb-4">
+              ⚠️ Сохраните эти данные! Пароль больше не будет доступен.
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(`Логин: ${createdStudent.username}\nПароль: ${createdStudent.password}`);
+                }}
+                className="flex-1 px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:opacity-90 transition-opacity"
+              >
+                📋 Копировать
+              </button>
+              <button
+                onClick={() => setCreatedStudent(null)}
+                className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity"
+              >
+                Закрыть
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -182,14 +261,23 @@ export default function AdminPanel() {
               Пароль <span className="text-red-500">*</span>
             </label>
             <div className="flex gap-2">
-              <input
-                type="text"
-                value={formData.password}
-                onChange={e => setFormData({ ...formData, password: e.target.value })}
-                className="flex-1 px-4 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="Введите или сгенерируйте пароль"
-                required
-              />
+              <div className="flex-1 relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={formData.password}
+                  onChange={e => setFormData({ ...formData, password: e.target.value })}
+                  className="w-full px-4 py-2 pr-10 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                  placeholder="Минимум 8 символов"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {showPassword ? '👁️' : '👁️‍🗨️'}
+                </button>
+              </div>
               <button
                 type="button"
                 onClick={generatePassword}
@@ -258,9 +346,10 @@ export default function AdminPanel() {
                     {!student.is_admin && (
                       <button
                         onClick={() => handleDeleteStudent(student.id, student.username)}
-                        className="text-red-600 hover:text-red-700 text-sm"
+                        disabled={deletingId === student.id}
+                        className="text-red-600 hover:text-red-700 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        Удалить
+                        {deletingId === student.id ? 'Удаление...' : 'Удалить'}
                       </button>
                     )}
                   </td>

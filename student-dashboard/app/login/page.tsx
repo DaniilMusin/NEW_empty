@@ -32,8 +32,8 @@ export default function LoginPage() {
         return;
       }
 
-      router.push('/');
-      router.refresh();
+      // БАГ #13: Используем window.location для гарантированной перезагрузки
+      window.location.href = '/';
     } catch (err) {
       setError('Произошла ошибка при входе');
       setLoading(false);

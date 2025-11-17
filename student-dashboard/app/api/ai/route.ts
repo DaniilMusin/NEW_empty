@@ -1,7 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
 
 export async function POST(request: NextRequest) {
   try {
+    // БАГ #1: Добавлена проверка авторизации
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Не авторизован' },
+        { status: 401 }
+      );
+    }
+
     const { messages } = await request.json();
 
     const apiKey = process.env.PERPLEXITY_API_KEY;

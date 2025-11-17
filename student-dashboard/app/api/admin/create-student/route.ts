@@ -1,9 +1,11 @@
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
+    const adminClient = createAdminClient();
 
     // Проверяем, что пользователь админ
     const { data: { user } } = await supabase.auth.getUser();
@@ -47,17 +49,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Создаем пользователя через auth.admin
-    // Для этого нужно использовать service role key
-    // Создадим через обычный signUp и затем обновим профиль
-    const { data: authData, error: authError } = await supabase.auth.signUp({
+    // БАГ #2, #3: Используем Admin API для создания пользователя
+    // Это не выкинет текущего админа и позволяет откатить транзакцию
+    const { data: authData, error: authError } = await adminClient.auth.admin.createUser({
       email,
       password,
-      options: {
-        data: {
-          username,
-          full_name,
-        },
+      email_confirm: true,
+      user_metadata: {
+        username,
+        full_name,
       },
     });
 
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Создаем профиль студента
-    const { error: profileError } = await supabase
+    const { error: profileError } = await adminClient
       .from('students')
       .insert({
         id: authData.user.id,
@@ -79,9 +79,10 @@ export async function POST(request: NextRequest) {
       });
 
     if (profileError) {
-      // Если не удалось создать профиль, удаляем пользователя
+      // БАГ #3: Если не удалось создать профиль, удаляем пользователя (откат транзакции)
+      await adminClient.auth.admin.deleteUser(authData.user.id);
       return NextResponse.json(
-        { error: 'Ошибка при создании профиля' },
+        { error: 'Ошибка при создании профиля: ' + profileError.message },
         { status: 500 }
       );
     }

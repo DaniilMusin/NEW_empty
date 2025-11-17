@@ -80,10 +80,10 @@ export default function AIAssistant() {
     setInput('');
     setIsLoading(true);
 
-    // Сохраняем сообщение пользователя
+    // БАГ #9: Используем функциональное обновление для избежания race condition
     const userMessage = await saveMessage('user', userContent);
     if (userMessage) {
-      setMessages([...messages, userMessage]);
+      setMessages((prev) => [...prev, userMessage]);
     }
 
     try {
@@ -110,21 +110,21 @@ export default function AIAssistant() {
       const data = await response.json();
       const assistantContent = data.choices[0].message.content;
 
-      // Сохраняем ответ ассистента
+      // БАГ #9: Функциональное обновление для добавления ответа ассистента
       const assistantMessage = await saveMessage('assistant', assistantContent);
       if (assistantMessage) {
-        setMessages([...messages, userMessage!, assistantMessage].filter(Boolean) as AIMessage[]);
+        setMessages((prev) => [...prev, assistantMessage]);
       }
     } catch (err: any) {
       setError(err.message || 'Произошла ошибка при обращении к AI');
 
-      // Если ошибка, все равно сохраняем сообщение об ошибке
+      // БАГ #9: Функциональное обновление для сообщения об ошибке
       const errorMessage = await saveMessage(
         'assistant',
         'Извините, произошла ошибка. Убедитесь, что в файле .env.local настроен PERPLEXITY_API_KEY.'
       );
       if (errorMessage) {
-        setMessages([...messages, userMessage!, errorMessage].filter(Boolean) as AIMessage[]);
+        setMessages((prev) => [...prev, errorMessage]);
       }
     } finally {
       setIsLoading(false);

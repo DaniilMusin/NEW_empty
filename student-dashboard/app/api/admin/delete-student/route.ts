@@ -1,9 +1,11 @@
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
+    const adminClient = createAdminClient();
 
     // Проверяем, что пользователь админ
     const { data: { user } } = await supabase.auth.getUser();
@@ -45,20 +47,28 @@ export async function POST(request: NextRequest) {
     }
 
     // Удаляем профиль (каскадно удалятся все связанные данные)
-    const { error: deleteError } = await supabase
+    const { error: deleteError } = await adminClient
       .from('students')
       .delete()
       .eq('id', student_id);
 
     if (deleteError) {
       return NextResponse.json(
-        { error: 'Ошибка при удалении ученика' },
+        { error: 'Ошибка при удалении профиля ученика' },
         { status: 500 }
       );
     }
 
-    // Примечание: удаление пользователя из auth.users требует service role key
-    // Для production нужно настроить это отдельно
+    // БАГ #4: Удаляем пользователя из auth.users через Admin API
+    const { error: authDeleteError } = await adminClient.auth.admin.deleteUser(
+      student_id
+    );
+
+    if (authDeleteError) {
+      console.error('Error deleting user from auth:', authDeleteError);
+      // Не возвращаем ошибку, так как профиль уже удален
+      // В худшем случае останется orphaned auth record
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {
