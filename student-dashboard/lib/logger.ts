@@ -8,7 +8,7 @@ export type LogLevel = 'info' | 'warn' | 'error';
 interface LogContext {
   userId?: string;
   operation?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 class Logger {
@@ -46,16 +46,16 @@ class Logger {
   /**
    * Удаляет sensitive данные из metadata
    */
-  private sanitizeMetadata(metadata: Record<string, any>): Record<string, any> {
+  private sanitizeMetadata(metadata: Record<string, unknown>): Record<string, unknown> {
     const sensitive = ['password', 'token', 'apiKey', 'secret', 'authorization'];
-    const sanitized: Record<string, any> = {};
+    const sanitized: Record<string, unknown> = {};
 
     for (const [key, value] of Object.entries(metadata)) {
       const lowerKey = key.toLowerCase();
       if (sensitive.some(s => lowerKey.includes(s))) {
         sanitized[key] = '[REDACTED]';
-      } else if (typeof value === 'object' && value !== null) {
-        sanitized[key] = this.sanitizeMetadata(value);
+      } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+        sanitized[key] = this.sanitizeMetadata(value as Record<string, unknown>);
       } else {
         sanitized[key] = value;
       }

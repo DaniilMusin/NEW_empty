@@ -12,10 +12,17 @@ import AdminPanel from '@/components/AdminPanel';
 
 type Tab = 'schedule' | 'homework' | 'grades' | 'reports' | 'ai' | 'admin';
 
+interface Student {
+  id: string;
+  username: string;
+  full_name: string;
+  is_admin: boolean;
+  created_at: string;
+}
+
 export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>('schedule');
-  const [user, setUser] = useState<any>(null);
-  const [student, setStudent] = useState<any>(null);
+  const [student, setStudent] = useState<Student | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const supabase = createClient();
@@ -24,8 +31,6 @@ export default function Home() {
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        setUser(user);
-
         // Получаем профиль ученика
         const { data: studentData } = await supabase
           .from('students')
@@ -39,7 +44,7 @@ export default function Home() {
     };
 
     getUser();
-  }, []);
+  }, [supabase]);
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' });

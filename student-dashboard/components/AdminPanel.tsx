@@ -20,7 +20,6 @@ export default function AdminPanel() {
     full_name: '',
     password: '',
   });
-  const [generatedPassword, setGeneratedPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [createdStudent, setCreatedStudent] = useState<{ username: string; password: string } | null>(null);
   const [error, setError] = useState('');
@@ -30,6 +29,7 @@ export default function AdminPanel() {
 
   useEffect(() => {
     loadStudents();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadStudents = async () => {
@@ -55,7 +55,6 @@ export default function AdminPanel() {
       password += chars.charAt(array[i] % chars.length);
     }
     setFormData({ ...formData, password });
-    setGeneratedPassword(password);
   };
 
   const handleCreateStudent = async (e: React.FormEvent) => {
@@ -113,7 +112,7 @@ export default function AdminPanel() {
       setFormData({ username: '', full_name: '', password: '' });
       setIsAdding(false);
       loadStudents();
-    } catch (err) {
+    } catch {
       setError('Произошла ошибка при создании ученика');
     }
   };
@@ -148,7 +147,7 @@ export default function AdminPanel() {
       } else {
         setError(result.error || 'Ошибка при удалении ученика');
       }
-    } catch (err) {
+    } catch {
       setError('Произошла ошибка при удалении ученика');
     } finally {
       setDeletingId(null);

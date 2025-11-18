@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useUser } from '@/hooks/useUser';
-import { formatDate, isOverdue, getTodayUTC, isNotInPast } from '@/lib/dates';
+import { formatDate, isOverdue, isNotInPast } from '@/lib/dates';
 
 interface Homework {
   id: string;
@@ -36,6 +36,7 @@ export default function Homework() {
     if (user) {
       loadHomework();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const loadHomework = async () => {

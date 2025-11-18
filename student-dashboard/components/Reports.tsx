@@ -41,6 +41,7 @@ export default function Reports() {
     if (user) {
       loadData();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const loadData = async () => {
@@ -63,8 +64,8 @@ export default function Reports() {
 
       if (reportsError) throw reportsError;
       setReports(reportsData || []);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Произошла ошибка');
     } finally {
       setLoading(false);
     }
@@ -101,8 +102,8 @@ export default function Reports() {
         notes: '',
         attendance: true,
       });
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Произошла ошибка');
     }
   };
 
@@ -113,8 +114,8 @@ export default function Reports() {
       if (error) throw error;
 
       setReports(reports.filter((r) => r.id !== id));
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Произошла ошибка');
     }
   };
 
