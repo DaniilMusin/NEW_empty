@@ -37,6 +37,7 @@ export default function Schedule() {
     if (user) {
       loadSchedules();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const loadSchedules = async () => {
@@ -50,8 +51,8 @@ export default function Schedule() {
 
       if (error) throw error;
       setSchedules(data || []);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Произошла ошибка');
     } finally {
       setLoading(false);
     }
@@ -90,8 +91,8 @@ export default function Schedule() {
         endTime: '',
         classroom: '',
       });
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Произошла ошибка');
     }
   };
 
@@ -102,8 +103,8 @@ export default function Schedule() {
       if (error) throw error;
 
       setSchedules(schedules.filter((s) => s.id !== id));
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Произошла ошибка');
     }
   };
 

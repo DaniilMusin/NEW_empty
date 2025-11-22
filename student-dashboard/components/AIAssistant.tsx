@@ -25,6 +25,7 @@ export default function AIAssistant() {
     if (user) {
       loadMessages();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   useEffect(() => {
@@ -41,8 +42,8 @@ export default function AIAssistant() {
 
       if (error) throw error;
       setMessages(data || []);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Произошла ошибка');
     } finally {
       setLoading(false);
     }
@@ -66,8 +67,8 @@ export default function AIAssistant() {
 
       if (error) throw error;
       return data;
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Произошла ошибка');
       return null;
     }
   };
@@ -108,8 +109,8 @@ export default function AIAssistant() {
       if (assistantMessage) {
         setMessages((prev) => [...prev, assistantMessage]);
       }
-    } catch (err: any) {
-      setError(err.message || 'Произошла ошибка при обращении к AI');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Произошла ошибка при обращении к AI');
 
       // БАГ #9: Функциональное обновление для сообщения об ошибке
       const errorMessage = await saveMessage(
@@ -133,8 +134,8 @@ export default function AIAssistant() {
       if (error) throw error;
 
       setMessages([]);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Произошла ошибка');
     }
   };
 

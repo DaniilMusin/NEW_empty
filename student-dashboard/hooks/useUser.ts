@@ -21,6 +21,7 @@ export function useUser() {
     });
 
     return () => subscription.unsubscribe();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return { user, loading };

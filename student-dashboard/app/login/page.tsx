@@ -2,14 +2,12 @@
 
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
   const supabase = createClient();
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -21,7 +19,7 @@ export default function LoginPage() {
       // В Supabase email обязателен, поэтому используем username как email
       const email = `${username}@student.local`;
 
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+      const { error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
@@ -34,7 +32,7 @@ export default function LoginPage() {
 
       // БАГ #13: Используем window.location для гарантированной перезагрузки
       window.location.href = '/';
-    } catch (err) {
+    } catch {
       setError('Произошла ошибка при входе');
       setLoading(false);
     }

@@ -35,6 +35,7 @@ export default function Grades() {
     if (user) {
       loadGrades();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const loadGrades = async () => {
@@ -47,8 +48,8 @@ export default function Grades() {
 
       if (error) throw error;
       setGrades(data || []);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Произошла ошибка');
     } finally {
       setLoading(false);
     }
@@ -87,8 +88,8 @@ export default function Grades() {
         type: 'homework',
         description: '',
       });
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Произошла ошибка');
     }
   };
 
@@ -99,8 +100,8 @@ export default function Grades() {
       if (error) throw error;
 
       setGrades(grades.filter((g) => g.id !== id));
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Произошла ошибка');
     }
   };
 
@@ -191,7 +192,7 @@ export default function Grades() {
             />
             <select
               value={formData.type}
-              onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
+              onChange={(e) => setFormData({ ...formData, type: e.target.value as 'homework' | 'test' | 'exam' | 'quiz' | 'project' })}
               className="px-4 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
             >
               <option value="homework">Домашнее задание</option>
